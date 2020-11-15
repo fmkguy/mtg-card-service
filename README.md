@@ -1,8 +1,8 @@
 # MTG Card Service
-A simple [Node.js](https://nodejs.org/) API server that provides easy-to-consume access to a local [MongoDB]() database. The data is compiled from open-source [MTGJSON](https://mtgjson.com/) project while the card image urls are sourced from [Scryfall's](https://scryfall.com/docs/api/images) own project.
+A simple [Node.js](https://nodejs.org/)/[Express](http://expressjs.com/) API server that provides easy-to-consume access to a local [MongoDB](https://www.mongodb.com/) database. The data is compiled using the open-source [MTGJSON](https://mtgjson.com/) project while the card image urls are sourced from [Scryfall's](https://scryfall.com/docs/api/images) image project.
 
 ## Prerequisites
-It's simplest to use Docker in combination with Docker-Compose. You'll need to have both installed to take full advantage of the dev environment.
+It's simplest to use [Docker](https://www.docker.com/) in combination with Docker-Compose. You'll need to have both installed to take full advantage of the dev environment.
 
 * [x] Docker
 * [x] Docker-Compose
@@ -116,16 +116,22 @@ params:
   COLORS
   c, colors
   id, colorIdentity   {[<=,>=,=]?}{[W|U|B|R|G|C]}
-                      Find cards that are in certain colors or have a color identity. Use the abbreviated color letters or "c" for "colorless". Operator is optional, defaults to equality. Color values are case-insensitive.
+                      Find cards that are in certain colors or have a color identity.
+                      Use the abbreviated color letters or "c" for "colorless".
+                      Operator is optional, defaults to equality. Color values are
+                      case-insensitive.
                       Examples: "<=RG", "C", "wubrg"
   
   NUMBERS
   cmc                 {[>,>=,<,<=,=]?}{number}
-                      Find cards of a certain converted mana cost. Operator is optional, defaults to equality.
+                      Find cards of a certain converted mana cost. Operator is 
+                      optional, defaults to equality.
   power               {[>,>=,<,<=,=]?}{[number,*]}
-                      Search for cards where creature's power is {number} or "*". Operator is optional, defaults to equality.
+                      Search for cards where creature's power is {number} or "*".
+                      Operator is optional, defaults to equality.
   toughness           {[>,>=,<,<=,=]?}{[number,*]}
-                      Search for cards where creature's power is {number} or "*". Operator is optional, defaults to equality.
+                      Search for cards where creature's power is {number} or "*".
+                      Operator is optional, defaults to equality.
 
   WORD SEARCH
   k, keywords         {string} Comma-seprated list of keywords to search.
@@ -133,9 +139,10 @@ params:
                       Find cards that can be your "Commander" in the specified format.
   name                {string} Search for card with specific name
   r, rarity           {[>,>=,<,<=,=]?}{[common, uncommon, rare, mythic]}
-                      Find cards based on rarity. Using operator will return cards in specified range. Operator is optional, defaults to equality.
-  types
-  subtypes
+                      Find cards based on rarity. Using operator will return cards in
+                      specified range. Operator is optional, defaults to equality.
+  types               {string} Comma-separated list of of types to check.
+  subtypes            {string} Comma-separated list of of types to check.
   supertypes          {string} Comma-separated list of of types to check.
   t, type             {string} Useful when being more specific.
                       Example: "Legendary Creature"
