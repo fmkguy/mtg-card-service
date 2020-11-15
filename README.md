@@ -16,12 +16,50 @@ $ docker-compose up --build
 ```
 
 ### **Database**
-The database should initialize correctly using the `init-mongo.js` file, but it's possible you may need to manually create and assign the user.
+The database should initialize automatically on the `docker-compose up` command (thanks to the `init-mongo.js` file). If there's a problem with the user or database initilization, see Troubleshooting below.
+
+#### **Seed the Database**
+You're not going to see much if we don't actually populate that database.
+
+In the `./data` directory, you'll find a couple of scripts to help with this process.
+
+Using our `api` service, this will be pretty painless. In a new terminal window, run the following:
+
+```
+$ docker-compose exec api bash data/seed.sh
+```
+
+It's going to automatially download the most up-to-date `AllPrintings.json` file from MTGJSON, unzip it, then open up a stream to parse the file and save the Card documents in our database. During this process, the script is also trying to fetch the card `imageUrls` from Scryfall. When it's done running, it will remove the JSON file and we should be left with a clean, local database of all MTG cards.
+
+> Because all of the services are already running, we can't just spin up a new api container for this task. It needs to communicate with our `mongo` container in order to save the cards. This means we'll already have a running Node process, so our script won't actually end. We'll need to manually close it by pressing Ctrl(^)+C to kill the process, and then delete the `AllPrintings.json` file from the data directory.
+
+To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
+
+If all went well, you should see ~55,000 entries!
+
+<p style="font-size: 1.6em; text-align:center;"><em>CONGRATULATIONS!</em></p>
+
+Now you'll run your first Mongo query. In the MongoExpress front end with the Cards collection selected, choose the "advanced" query method and add this as your query:
+
+```
+{ imageUrls: { $exists: false } }
+```
+
+We're checking to see if we have any cards that are missing images. It's okay if some of them are. If you find that you have missing card images, go back to your terminal window and run this script command:
+
+```
+$ docker-compose exec api node data/fixMissingImages.js
+```
+
+After that runs, try the `imageUrls` query again to see if we're still missing any images.
+
+##### Troubleshooting
+1. Trouble creating a database, db user, or db collection:
 
 With the service running, in a new terminal window enter the following:
 
 ```
-$ docker-compose run --rm -u root -p root mongo mongo
+$ docker-compose exec --rm -u root -p root mongo mongo
 ```
 
 That will connect to and open the mongo shell as the root user (using the credentials defined in the `docker-compose.yml` file in the mongo service environment variables).
@@ -34,28 +72,12 @@ $ db.createUser({ user: "mtgAdmin", pwd: "manadork", roles: [{ role: "readWrite"
 
 > If you decide to change the username and password values, you'll need to update the `api` service environment variables in the `docker-compose.yml` file.
 
-#### **Seed the Database**
-You're not going to see much if we don't actually populate that database. In the `./data` directory, you'll find a couple of scripts to help with this process.
+2. Trouble with getting card images:
 
-Using our `api` service, though, this will be pretty painless. In a new terminal window, run the following:
-
-```
-$ docker-compose run --rm api bash data/seed.sh
-```
-
-It's going to automatially download the most up-to-date `AllPrintings.json` file from MTGJSON, unzip it, then open up a stream to parse the file and save the Card documents in our database. During this process, the script is also trying to fetch the card `imageUrls` from Scryfall. When it's done running, it will remove the JSON file and we should be left with a clean, local database of all MTG cards.
-
-To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
-
-If all went well, you should see ~55,000 entries!
-
-**CONGRATULATIONS!**
-
-##### Troubleshooting
 It's possible some card images will fail to load during this process. If that happens, there's another script that will find all Card entries with missing images and attempt to re-run the fetch to Scryfall's API.
 
 ```
-$ docker-compose run --rm api node data/fixMissingImages.js
+$ docker-compose exec api node data/fixMissingImages.js
 ```
 
 ### **API**
