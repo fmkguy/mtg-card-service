@@ -1,0 +1,2 @@
+# ignore our seed data files if they fail to delete
+*.json*
