@@ -11,8 +11,8 @@ router.get('/', (req, res, next) => {
 });
 
 router.post('/', (req, res, next) => {
-  const { collection } = req.body.query;
-  const query = { "uuid": { $in: collection } };
+  const { cards } = req.body.query;
+  const query = { "uuid": { $in: cards } };
 
   Promise.all([
     Card.find(query)
@@ -21,7 +21,7 @@ router.post('/', (req, res, next) => {
     Card.count(query).exec()
   ])
     .then(response => {
-      const [ cards, cardsCount ] = response;
+      const [cards, cardsCount] = response;
 
       res.json({
         data: {
