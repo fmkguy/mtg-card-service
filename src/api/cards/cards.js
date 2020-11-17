@@ -114,7 +114,7 @@ function searchQuery(req, res, next) {
       .limit(Number(limit))
       .skip(Number(offset))
       .exec(),
-    Card.count(query).exec()
+    Card.estimatedDocumentCount(query).exec()
   ])
     .then(results => {
       const [ cards, cardsCount ] = results;

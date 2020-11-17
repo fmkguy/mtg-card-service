@@ -209,6 +209,10 @@ CardSchema.pre('save', async function(next) {
     this.setColorSortOrder();
   }
 
+  if (!this.manaCostSortOrder) {
+    this.setManaCostSortOrder();
+  }
+
   next();
 });
 
