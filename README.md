@@ -189,7 +189,7 @@ Returns complete list of MTG Sets.
 // response:
 {
   "data": {
-    sets: [{Set}]
+    "sets": [{Set}]
   }
 }
 ```

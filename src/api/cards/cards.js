@@ -230,8 +230,8 @@ router.get('/', searchQuery);
 // accepts query as JSON body
 router.post('/', searchQuery);
 
-router.get('/:id', (req, res, next) => {
-  Card.findOne({ uuid: req.params.id })
+router.get('/:uuid', (req, res, next) => {
+  Card.findOne({ uuid: req.params.uuid })
     .populate([
       FIELD_NAMES.setData,
       FIELD_NAMES.priceData
