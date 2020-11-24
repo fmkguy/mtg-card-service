@@ -29,11 +29,11 @@ Using our `api` service, this will be pretty painless. In a new terminal window,
 $ docker-compose exec api bash data/seed.sh
 ```
 
-It's going to automatially download the most up-to-date `AllPrintings.json` and `AllPrices.json` files from MTGJSON, unzip them, then open up a stream to parse the files and save the Card and Price documents in our database. After all of the  this process, the script is also trying to fetch the card `imageUrls` from Scryfall. When it's done running, it will remove the JSON files and we should be left with a clean, local database of all MTG cards.
+It's going to automatially download the most up-to-date `AllPrintings.json` and `AllPrices.json` files from MTGJSON, unzip them, then open up a stream to parse the files and save the Card and Price documents in our database. Once the insertions are complete and our database is populated, the script will begin to fetch the card `imageUrls` from Scryfall.
 
-> The initialization of the "Fetching card images..." stage of the seed script will take several seconds as it builds a list of every item in the database
+> Heads-up: The initialization of the "Fetching card images..." stage of the seed script will take several seconds as it builds a list of every item in the database.
 
-To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
+When _that's_ done running, it will remove the JSON files and we should be left with a clean, local database of all MTG cards. To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
 
 If all went well, you should see ~55,000 entries!
 
@@ -50,29 +50,29 @@ $ docker-compose exec api node data/prices.js
 ##### Troubleshooting
 1. Trouble creating a database, db user, or db collection:
 
-  With the service running, in a new terminal window enter the following:
+    With the service running, in a new terminal window enter the following:
 
-  ```
-  $ docker-compose exec --rm -u root -p root mongo mongo
-  ```
+    ```
+    $ docker-compose exec --rm -u root -p root mongo mongo
+    ```
 
-  That will connect to and open the mongo shell as the root user (using the credentials defined in the `docker-compose.yml` file in the mongo service environment variables).
+    That will connect to and open the mongo shell as the root user (using the credentials defined in the `docker-compose.yml` file in the mongo service environment variables).
 
-  Proceed by creating a new user and assigning the appropriate role permissions.
+    Proceed by creating a new user and assigning the appropriate role permissions.
 
-  ```
-  $ db.createUser({ user: "mtgAdmin", pwd: "manadork", roles: [{ role: "readWrite", db: "mtg" }] });
-  ```
+    ```
+    $ db.createUser({ user: "mtgAdmin", pwd: "manadork", roles: [{ role: "readWrite", db: "mtg" }] });
+    ```
 
-  > If you decide to change the username and password values, you'll need to update the `api` service environment variables in the `docker-compose.yml` file.
+    > If you decide to change the username and password values, you'll need to update the `api` service environment variables in the `docker-compose.yml` file.
 
 2. Trouble with getting card images:
 
-  It's possible some card images will fail to load during this process. If that happens, there's another script that will find all Card entries with missing images and attempt to re-run the fetch to Scryfall's API.
+    It's possible some card images will fail to load during this process. If that happens, there's another script that will find all Card entries with missing images and attempt to re-run the fetch to Scryfall's API.
 
-  ```
-  $ docker-compose exec api node data/fixMissingImages.js
-  ```
+    ```
+    $ docker-compose exec api node data/fixMissingImages.js
+    ```
 
 ### **API**
 URL defaults to `http://localhost:3000/`. `PORT` can be configured, either in a `.env` file or in the `docker-compose.yml` environment variables.
