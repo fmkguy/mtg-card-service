@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const fetch = require('node-fetch');
-const { MODEL_NAMES } = require('../lib/constants');
+const { FIELD_NAMES, MODEL_NAMES } = require('../lib/constants');
 
 const ForeignDataSchema = new mongoose.Schema({
   faceName: String,
@@ -67,7 +67,7 @@ const PurchaseUrlsSchema = new mongoose.Schema({
 });
 
 const RulingsSchema = new mongoose.Schema({
-  date: String,
+  date: Date,
   text: String
 });
 
@@ -79,7 +79,7 @@ const CardSchema = new mongoose.Schema({
   colorIdentity: { type: [String], index: true },
   colorIndicator: { type: [String], index: true },
   colors: { type: [String], index: true },
-  colorSortOrder: { type: Number, index: true },
+  colorSortOrder: Number,
   convertedManaCost: { type: String, index: true },
   count: Number,
   dualDeck: String,
@@ -117,7 +117,7 @@ const CardSchema = new mongoose.Schema({
   life: String,
   loyalty: String,
   manaCost: { type: String, index: true },
-  manaCostSortOrder: { type: Number, index: true },
+  manaCostSortOrder: Number,
   name: { type: String, index: true },
   number: String,
   originalText: String,
@@ -129,7 +129,7 @@ const CardSchema = new mongoose.Schema({
   purchaseUrls: PurchaseUrlsSchema,
   rarity: { type: String, index: true },
   rulings: [RulingsSchema],
-  setCode: String,
+  setCode: { type: String, index: true },
   side: String,
   subtypes: { type: [String], index: true },
   supertypes: { type: [String], index: true },
@@ -142,10 +142,18 @@ const CardSchema = new mongoose.Schema({
   watermark: String
 });
 
+// compound index for our basic text search
 CardSchema.index({
   name: 'text',
   text: 'text',
   type: 'text'
+});
+
+// compound index to help speed up our sorting
+CardSchema.index({
+  colorSortOrder: 1,
+  manaCostSortOrder: 1,
+  name: 1
 });
 
 CardSchema.methods.insertImages = async function() {
@@ -161,23 +169,26 @@ CardSchema.methods.insertImages = async function() {
       if (image_uris) {
         images.push(image_uris);
       } else if (card_faces) {
-        card_faces.map(async face => await images.push(face.image_uris));
+        card_faces.map(face => images.push(face.image_uris));
       }
       return images.length ? images : null;
     })
     .catch(err => console.log('`${this.name}`', err));
 }
 
-CardSchema.methods.setManaCostSortOrder = function() {
-  // Cards with "X" in their mana costs should appear at the end of the list
-  // valid inputs as "{X}{W}" or "XW"
-  const xVal = 20 * [...this.manaCost.matchAll(/({?X}?)/gi)].length;
-  this.manaCostSortOrder = Number(this.convertedManaCost) + xVal;
-}
+// If no color is assigned, assume "colorless" and assign "C".
+// Needed for setColorSortOrder method to work correctly.
+CardSchema.pre('validate', function(next) {
+  if (!this.colors || this.colors.length <= 0) {
+    this.colors = ['C'];
+  }
 
+  next();
+});
+
+// Ensures all cards receieve a "color" value for sorting
+// "colorless" should appear after all other colors and color pairings
 CardSchema.methods.setColorSortOrder = function() {
-  // ensures all cards receieve a "color" value for sorting
-  // "colorless" should appear after all other colors and color pairings
   const colorValues = {
     W: 1,
     U: 2,
@@ -191,20 +202,14 @@ CardSchema.methods.setColorSortOrder = function() {
   this.colorSortOrder = colorsArr.reduce((acc, cur) => acc + colorValues[cur], 0) * lengthMultiplier;
 }
 
-CardSchema.pre('validate', function(next) {
-  // if no color is assigned, assume "colorless"
-  if (!this.colors || this.colors.length <= 0) {
-    this.colors = ['C'];
-  }
-
-  next();
-});
+CardSchema.methods.setManaCostSortOrder = function() {
+  // Cards with "X" in their mana costs should appear at the end of the list
+  // valid inputs as "{X}{W}" or "XW"
+  const xVal = this.manaCost ? 20 * [...this.manaCost.matchAll(/({?X}?)/gi)].length : 0;
+  this.manaCostSortOrder = Number(this.convertedManaCost) + xVal;
+}
 
 CardSchema.pre('save', async function(next) {
-  if (!this.imageUrls || !this.imageUrls.length) {
-    await this.insertImages();
-  }
-
   if (!this.colorSortOrder) {
     this.setColorSortOrder();
   }
@@ -216,4 +221,20 @@ CardSchema.pre('save', async function(next) {
   next();
 });
 
-mongoose.model(MODEL_NAMES.CARD, CardSchema);
+// Not "querying" Set data the the card level, so assign virtually.
+CardSchema.virtual(FIELD_NAMES.setData, {
+  ref: MODEL_NAMES.Set,
+  localField: FIELD_NAMES.setCode,
+  foreignField: FIELD_NAMES.code,
+  justOne: true
+});
+
+// Not "querying" Price data the the card level, so assign virtually.
+CardSchema.virtual(FIELD_NAMES.priceData, {
+  ref: MODEL_NAMES.Price,
+  localField: FIELD_NAMES.uuid,
+  foreignField: FIELD_NAMES.uuid,
+  justOne: true
+});
+
+mongoose.model(MODEL_NAMES.Card, CardSchema);

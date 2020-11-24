@@ -9,6 +9,8 @@ mongoose.connect(
   { useNewUrlParser: true }
 );
 
+require('./models/Price');
+require('./models/Set');
 require('./models/Card');
 
 // MIDDLEWARES

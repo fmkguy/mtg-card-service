@@ -29,9 +29,9 @@ Using our `api` service, this will be pretty painless. In a new terminal window,
 $ docker-compose exec api bash data/seed.sh
 ```
 
-It's going to automatially download the most up-to-date `AllPrintings.json` file from MTGJSON, unzip it, then open up a stream to parse the file and save the Card documents in our database. During this process, the script is also trying to fetch the card `imageUrls` from Scryfall. When it's done running, it will remove the JSON file and we should be left with a clean, local database of all MTG cards.
+It's going to automatially download the most up-to-date `AllPrintings.json` and `AllPrices.json` files from MTGJSON, unzip them, then open up a stream to parse the files and save the Card and Price documents in our database. After all of the  this process, the script is also trying to fetch the card `imageUrls` from Scryfall. When it's done running, it will remove the JSON files and we should be left with a clean, local database of all MTG cards.
 
-> Because all of the services are already running, we can't just spin up a new api container for this task. It needs to communicate with our `mongo` container in order to save the cards. This means we'll already have a running Node process, so our script won't actually end. We'll need to manually close it by pressing Ctrl(^)+C to kill the process, and then delete the `AllPrintings.json` file from the data directory.
+> The initialization of the "Fetching card images..." stage of the seed script will take several seconds as it builds a list of every item in the database
 
 To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
 
@@ -39,46 +39,40 @@ If all went well, you should see ~55,000 entries!
 
 <p style="font-size: 1.6em; text-align:center;"><em>CONGRATULATIONS!</em></p>
 
-Now you'll run your first Mongo query. In the MongoExpress front end with the Cards collection selected, choose the "advanced" query method and add this as your query:
+#### **Price Updates**
+
+Price data is initialized during the `seed.sh` script, but to update the prices collection, you can manually run the prices script.
 
 ```
-{ imageUrls: { $exists: false } }
+$ docker-compose exec api node data/prices.js
 ```
-
-We're checking to see if we have any cards that are missing images. It's okay if some of them are. If you find that you have missing card images, go back to your terminal window and run this script command:
-
-```
-$ docker-compose exec api node data/fixMissingImages.js
-```
-
-After that runs, try the `imageUrls` query again to see if we're still missing any images.
 
 ##### Troubleshooting
 1. Trouble creating a database, db user, or db collection:
 
-With the service running, in a new terminal window enter the following:
+  With the service running, in a new terminal window enter the following:
 
-```
-$ docker-compose exec --rm -u root -p root mongo mongo
-```
+  ```
+  $ docker-compose exec --rm -u root -p root mongo mongo
+  ```
 
-That will connect to and open the mongo shell as the root user (using the credentials defined in the `docker-compose.yml` file in the mongo service environment variables).
+  That will connect to and open the mongo shell as the root user (using the credentials defined in the `docker-compose.yml` file in the mongo service environment variables).
 
-Proceed by creating a new user and assigning the appropriate role permissions.
+  Proceed by creating a new user and assigning the appropriate role permissions.
 
-```
-$ db.createUser({ user: "mtgAdmin", pwd: "manadork", roles: [{ role: "readWrite", db: "mtg" }] });
-```
+  ```
+  $ db.createUser({ user: "mtgAdmin", pwd: "manadork", roles: [{ role: "readWrite", db: "mtg" }] });
+  ```
 
-> If you decide to change the username and password values, you'll need to update the `api` service environment variables in the `docker-compose.yml` file.
+  > If you decide to change the username and password values, you'll need to update the `api` service environment variables in the `docker-compose.yml` file.
 
 2. Trouble with getting card images:
 
-It's possible some card images will fail to load during this process. If that happens, there's another script that will find all Card entries with missing images and attempt to re-run the fetch to Scryfall's API.
+  It's possible some card images will fail to load during this process. If that happens, there's another script that will find all Card entries with missing images and attempt to re-run the fetch to Scryfall's API.
 
-```
-$ docker-compose exec api node data/fixMissingImages.js
-```
+  ```
+  $ docker-compose exec api node data/fixMissingImages.js
+  ```
 
 ### **API**
 URL defaults to `http://localhost:3000/`. `PORT` can be configured, either in a `.env` file or in the `docker-compose.yml` environment variables.
@@ -131,8 +125,14 @@ Both requests return results in the following format:
 #### **Available query params**
 ```
 defaults:
-  limit         20    limits the returned number of cards
-  offset         0    used in combination with `limit` to implement stateless pagination
+  limit           20  Limits the returned number of cards (setting to -1 forces
+                      "limitless" results--use with caution)
+  skip             0  Used in combination with `limit` to implement stateless
+                      pagination
+  d, distinct   uuid  [uuid|name]<string>
+  s, sort             <string> Accepts a field name to sort the returned distinct
+                      values (Currently, "releaseDate" is the only field to sort by)
+  o, order       asc  [asc|desc]<string>
 
 params:
   COLORS
@@ -145,30 +145,68 @@ params:
                       Examples: "<=RG", "C", "wubrg"
   
   NUMBERS
-  cmc                 {[>,>=,<,<=,=]?}{number}
+  cmc                 {[>,>=,<,<=,=]?}<number>
                       Find cards of a certain converted mana cost. Operator is 
                       optional, defaults to equality.
   power               {[>,>=,<,<=,=]?}{[number,*]}
-                      Search for cards where creature's power is {number} or "*".
+                      Search for cards where creature's power is <number> or "*".
                       Operator is optional, defaults to equality.
   toughness           {[>,>=,<,<=,=]?}{[number,*]}
-                      Search for cards where creature's power is {number} or "*".
+                      Search for cards where creature's power is <number> or "*".
                       Operator is optional, defaults to equality.
 
   WORD SEARCH
-  k, keywords         {string} Comma-seprated list of keywords to search.
+  k, keywords         <string> Comma-seprated list of keywords to search.
   l, leadership       {[brawl,commander,oathbreaker]}
                       Find cards that can be your "Commander" in the specified format.
-  name                {string} Search for card with specific name
+  name                <string> Search for card with specific name
   r, rarity           {[>,>=,<,<=,=]?}{[common, uncommon, rare, mythic]}
                       Find cards based on rarity. Using operator will return cards in
                       specified range. Operator is optional, defaults to equality.
-  types               {string} Comma-separated list of of types to check.
-  subtypes            {string} Comma-separated list of of types to check.
-  supertypes          {string} Comma-separated list of of types to check.
-  t, type             {string} Useful when being more specific.
+  types               <string> Comma-separated list of of types to check.
+  subtypes            <string> Comma-separated list of of types to check.
+  supertypes          <string> Comma-separated list of of types to check.
+  t, type             <string> Useful when being more specific.
                       Example: "Legendary Creature"
-  q                   {string} Searches all cards' name, text, and type fields.
+  q                   <string> Searches all cards' name, text, and type fields.
+```
+
+### Single Card
+```
+GET /api/v1/cards/:uuid
+```
+
+Returns all data for a single card based on the MTGJSON `uuid`.
+
+### Sets
+```
+GET /api/v1/sets
+```
+
+Returns complete list of MTG Sets.
+
+```js
+// response:
+{
+  "data": {
+    sets: [{Set}]
+  }
+}
+```
+
+### Single Set
+
+```
+GET /api/v1/sets/:code
+```
+
+Returns all data for a single set based on the set code.
+
+```js
+// response:
+{
+  "data": {Set}
+}
 ```
 
 ### Collection
@@ -176,7 +214,7 @@ params:
 POST /api/v1/collection
 ```
 
-Accepts a list of card `uuid` strings and returns the full sorted list of cards.
+Accepts an array of card `uuid` strings and returns the full sorted list of cards.
 
 > **Note:** `limit` and `offset` aren't available on this endpoint. The API simply returns the complete list of requested cards.
 

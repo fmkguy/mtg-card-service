@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const mongoose = require('mongoose');
-const { MODEL_NAMES } = require('../../lib/constants');
+const { FIELD_NAMES, MODEL_NAMES } = require('../../lib/constants');
 
-const Card = mongoose.model(MODEL_NAMES.CARD);
+const Card = mongoose.model(MODEL_NAMES.Card);
 
 router.get('/', (req, res, next) => {
   res.json({
@@ -15,17 +15,24 @@ router.post('/', (req, res, next) => {
   const query = { "uuid": { $in: cards } };
 
   Promise.all([
-    Card.find(query)
-      .sort({ colorSortOrder: 1, manaCostSortOrder: 1, name: 1 })
+    Card.find(query, null, { sort: { colorSortOrder: 1, manaCostSortOrder: 1, name: 1 } })
+      .populate([
+        FIELD_NAMES.priceData,
+        FIELD_NAMES.setData
+      ])
       .exec(),
-    Card.count(query).exec()
+    Card.estimatedDocumentCount(query).exec()
   ])
     .then(response => {
       const [cards, cardsCount] = response;
 
       res.json({
         data: {
-          cards,
+          cards: cards.map(card => ({
+            ...card._doc,
+            priceData: card.priceData,
+            setData: card.setData,
+          })),
           cardsCount
         }
       });

@@ -14,33 +14,44 @@ mongoose.connect(
   { useNewUrlParser: true }
 );
 
+require('../src/models/Set');
 require('../src/models/Card');
 
-const Card = mongoose.model(MODEL_NAMES.CARD);
+const Set = mongoose.model(MODEL_NAMES.Set);
+const Card = mongoose.model(MODEL_NAMES.Card);
 
-// Step 1: Drop the initial collection
+// Step 1: Drop the initial collection(s)
 Card.collection.drop();
+Set.collection.drop();
 
 // Step 2: Stream the JSON file and insert the card objects into our database
 const writeStream = new Writable({
   write({value}, encoding, callback) {
     let i = 0;
-    
-    // Slow down the requests for
-    const setCardData = () => {
-      if (i < value.cards.length) {
-        setTimeout(() => {
-          const card = new Card(value.cards[i++]);
-      
-          card.save()
-            .then(({name, imageUrls}) => console.log({name, imageUrls}))
-            .catch(err => console.log(err));
-          setCardData();
-        }, 200);
-      }
-    }
 
-    setCardData();
+    const setData = new Set({
+      baseSetSize: value.baseSetSize,
+      code: value.code,
+      isFoilOnly: value.isFoilOnly,
+      isOnlineOnly: value.isOnlineOnly,
+      isPaperOnly: value.isPaperOnly,
+      name: value.name,
+      releaseDate: value.releaseDate,
+      totalSetSize: value.totalSetSize,
+      type: value.type,
+    });
+    
+    setData.save()
+      .then(() => {
+        value.cards.forEach(doc => {
+          const card = new Card(doc);
+          // save and log the card names
+          card.save()
+            .then(({name}) => console.log({name}))
+            .catch(err => console.log(err));
+        });
+      })
+      .catch(err => console.log(err));
 
     callback();
   },
@@ -55,4 +66,8 @@ const pipeline = chain([
 
 pipeline.pipe(writeStream);
 
-writeStream.on('finish', () => console.log(`All done!`));
+writeStream.on('finish', () => {
+  console.log(`Initial card insertions: complete!`)
+  process.exit();
+});
+

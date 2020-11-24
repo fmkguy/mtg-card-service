@@ -10,3 +10,5 @@ db.createUser({
 });
 
 db.createCollection("cards");
+db.createCollection("sets");
+db.createCollection("prices");

@@ -1,15 +1,20 @@
 const router = require('express').Router();
 const mongoose = require('mongoose');
-const { MODEL_NAMES } = require('../../lib/constants');
+const { DB_COLLECTIONS, FIELD_NAMES, MODEL_NAMES } = require('../../lib/constants');
 const { getColorQuery, getNumberQuery, getRarityQuery } = require('../../lib/utils');
 
-const Card = mongoose.model(MODEL_NAMES.CARD);
+const Card = mongoose.model(MODEL_NAMES.Card);
 
-function searchQuery(req, res, next) {
+function queryBuilder(request) {
   const query = {};
+  const options = {};
   const {
+    // UTILITY
     limit = 20,
-    offset = 0,
+    skip = 0,
+    d,distinct,
+    s,sort,
+    o,order,
     // COLORS
     c,colors,
     id,colorIdentity,
@@ -29,7 +34,7 @@ function searchQuery(req, res, next) {
     t,type,
     // GENERIC TEXT SEARCH
     q
-  } = req.body.query || req.query;
+  } = request;
 
   // COLORS
   if (c || colors) {
@@ -39,8 +44,7 @@ function searchQuery(req, res, next) {
     query.colorIdentity = getColorQuery(id || colorIdentity);
   }
   if (colorIndicator) {
-    const colorIndicatorList = colorIndicator.split('');
-    query.colorIndicator = { $in: colorIndicatorList };
+    query.colorIndicator = { $in: colorIndicator.split('') };
   }
   
   // CMC
@@ -58,13 +62,12 @@ function searchQuery(req, res, next) {
   
   // KEYWORDS
   if (k || keywords) {
-    const keywordsList = k || keywords;
-    query.keywords = { $in: keywordsList.split(',') };
+    query.keywords = { $in: (k || keywords).split(',') };
   }
 
   // LEADERSHIP (can be Commander)
   if (l || leadership) {
-    query[`leadershipSkills.${(l || leadership).toLowerCase()}`] = true;
+    query[`${FIELD_NAMES.leadershipSkills}.${(l || leadership).toLowerCase()}`] = true;
   }
 
   // NAME
@@ -79,23 +82,19 @@ function searchQuery(req, res, next) {
   }
 
   // TYPES
-  const typesList = types ? types.split(',') : null;
-  const subtypesList = subtypes ? subtypes.split(',') : null;
-  const supertypesList = supertypes ? supertypes.split(',') : null;
-  if (subtypesList) {
-    query.subtypes = { $in: subtypesList };
+  if (subtypes) {
+    query.subtypes = { $in: subtypes.split(',') };
   }
-  if (supertypesList) {
-    query.supertypes = { $in: supertypesList };
+  if (supertypes) {
+    query.supertypes = { $in: supertypes.split(',') };
   }
-  if (typesList) {
-    query.types = { $in: typesList };
+  if (types) {
+    query.types = { $in: types.split(',') };
   }
   
   // TYPE (more generic string search)
   if (t || type) {
-    const typeList = t || type;
-    const typeString = new RegExp(typeList.replace(',', ' '), 'ig');
+    const typeString = new RegExp((t || type).replace(',', ' '), 'ig');
     query.type = { $regex: typeString };
   }
 
@@ -105,15 +104,111 @@ function searchQuery(req, res, next) {
     const qTapped = (q.match(/\btap\b/, 'ig')) ? `${q} {T}` : q;
     query.$text = { $search: qTapped }
   }
+  
+  options.skip = Number(skip);
 
-  console.log({ query, params: req.query });
+  // Allows for "bypass" around defaults to get all results
+  if (limit != '-1') {
+    options.limit = Number(limit);
+  }
+  
+  // set primary sort order
+  options.sort = { colorSortOrder: 1, manaCostSortOrder: 1, name: 1 };
+  
+  console.log({ query, options, params: request });
+  
+  return {
+    query,
+    options,
+    distinct: d || distinct || FIELD_NAMES.uuid,
+    subSort: s || sort,
+    order: o || order || 'asc'
+  }
+}
+
+function searchQuery(req, res, next) {
+  const request = req.body.query || req.query;
+
+  // Short-circuit if search query is empty
+  if (Object.keys(request).length === 0 || typeof request === 'undefined') {
+    return res.status(400).json({ error: { message: 'Request body cannot be empty.' } });
+  }
+
+  const {
+    query,
+    options: {
+      limit,
+      skip,
+      sort
+    },
+    distinct,
+    subSort,
+    order } = queryBuilder(request);
+
+  const orderVal = {
+    asc: 1,
+    desc: -1
+  };
+
+  const pipeline = [
+    // Actually do the lookup
+    { $match: query },
+      
+    // "hydrate" with set and price data
+    { $lookup: {
+      from: DB_COLLECTIONS.sets,
+      localField: FIELD_NAMES.setCode,
+      foreignField: FIELD_NAMES.code,
+      as: FIELD_NAMES.setData
+    } },
+    { $lookup: {
+      from: DB_COLLECTIONS.prices,
+      localField: FIELD_NAMES.uuid,
+      foreignField: FIELD_NAMES.uuid,
+      as: FIELD_NAMES.priceData
+    } },
+  ];
+
+  // sort cards by set release date (key has to be hard-coded string)
+  if (subSort === FIELD_NAMES.releaseDate) {
+    pipeline.push({ $sort: { 'setData.releaseDate': orderVal[order] } });
+  }
+
+  // TODO: See if the card key can be replaced using "replaceRoot"/"newRoot"
+  // group by "distinct" value ['uuid', 'name']
+  pipeline.push(
+    { $group: {
+      _id: `$${distinct}`,
+      card: { $first: '$$ROOT' }
+    } }
+  );
+  
+  // reformat card object after grouping
+  pipeline.push(
+    { $project: {
+      _id: '$card._id',
+      ...Object.keys(Card.schema.obj)
+        .reduce((obj, key) => {
+          obj[key] = `$card.${key}`;
+          return obj;
+        }, {}),
+      setData: { $arrayElemAt: ['$card.setData', 0] },
+      priceData: { $arrayElemAt: ['$card.priceData', 0] }
+    } }
+  );
+
+  pipeline.push({ $sort: sort });
+
+  if (typeof skip === 'number') {
+    pipeline.push({ $skip: skip });
+  }
+  if (typeof limit === 'number') {
+    pipeline.push({ $limit: limit });
+  }
 
   Promise.all([
-    Card.find(query)
-      .sort({ colorSortOrder: 1, manaCostSortOrder: 1, name: 1 })
-      .limit(Number(limit))
-      .skip(Number(offset))
-      .exec(),
+    Card.aggregate(pipeline)
+      .allowDiskUse(true).exec(),
     Card.estimatedDocumentCount(query).exec()
   ])
     .then(results => {
@@ -136,8 +231,20 @@ router.get('/', searchQuery);
 router.post('/', searchQuery);
 
 router.get('/:id', (req, res, next) => {
-  Card.findOne({ uuid:req.params.id })
-    .then(results => res.json({data: results}))
+  Card.findOne({ uuid: req.params.id })
+    .populate([
+      FIELD_NAMES.setData,
+      FIELD_NAMES.priceData
+    ])
+    .then(card => res.json({
+      data: {
+        card: {
+          ...card._doc,
+          setData: card.setData,
+          priceData: card.priceData
+        }
+      }
+    }))
     .catch(next);
 });
 

@@ -9,9 +9,17 @@ mongoose.connect(
 
 require('../src/models/Card');
 
-const Card = mongoose.model(MODEL_NAMES.CARD);
+const Card = mongoose.model(MODEL_NAMES.Card);
 
-const query = { "imageUrls": { $exists: false } };
+const query = {
+  $or: [
+    { "imageUrls": { $size: 0 } },
+    { "imageUrls": { $exists: false } },
+    { "imageUrls": { $in: { $type: 10 } } },
+  ]
+};
+
+const complete = false;
 
 Card.find(query)
   .then(cards => {
@@ -26,10 +34,14 @@ Card.find(query)
             .then(({name, imageUrls}) => console.log({name, imageUrls}))
             .catch(err => console.log(err));
           setCardData();
-        }, 200);
+        }, 100);
+      } else {
+        complete = true;
+        return complete;
       }
     }
 
     setCardData();
   })
-  .catch(err => console.log(err));
+  .catch(err => console.log(err))
+  .finally(() => complete ?? process.exit());
