@@ -38,7 +38,7 @@ const ImageUrlsSchema = new mongoose.Schema({
   small: String
 });
 
-const leadershipSkillsSchema = new mongoose.Schema({
+const LeadershipSkillsSchema = new mongoose.Schema({
   brawl: Boolean,
   commander: Boolean,
   oathbreaker: Boolean
@@ -112,7 +112,7 @@ const CardSchema = new mongoose.Schema({
   isTimeshifted: Boolean,
   keywords: { type: [String], index: true },
   layout: String,
-  leadershipSkills: leadershipSkillsSchema,
+  leadershipSkills: LeadershipSkillsSchema,
   legalities: LegalitiesSchema,
   life: String,
   loyalty: String,

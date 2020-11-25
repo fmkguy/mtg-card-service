@@ -19,7 +19,7 @@ const query = {
   ]
 };
 
-const complete = false;
+let complete = false;
 
 Card.find(query)
   .then(cards => {
@@ -34,7 +34,7 @@ Card.find(query)
             .then(({name, imageUrls}) => console.log({name, imageUrls}))
             .catch(err => console.log(err));
           setCardData();
-        }, 100);
+        }, 50);
       } else {
         complete = true;
         return complete;
@@ -44,4 +44,4 @@ Card.find(query)
     setCardData();
   })
   .catch(err => console.log(err))
-  .finally(() => complete ?? process.exit());
+  .finally(() => complete && process.exit());

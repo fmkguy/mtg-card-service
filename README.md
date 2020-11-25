@@ -33,6 +33,10 @@ It's going to automatially download the most up-to-date `AllPrintings.json` and 
 
 > Heads-up: The initialization of the "Fetching card images..." stage of the seed script will take several seconds as it builds a list of every item in the database.
 
+> **WARNING:** It's important to note that each request to the Scryfall Image API is wrapped in a 50ms timeout to prevent our service from accidentally getting our IP address blocked. This means that it's going to take a _long_ time to finish running the images script.
+
+> ```50ms x ~55,000 records = a very long time, indeed```
+
 When _that's_ done running, it will remove the JSON files and we should be left with a clean, local database of all MTG cards. To confirm, open your browser to `http://localhost:8081/` to use the Mongo Express frontend. Select the "mtg" database and the "cards" collection.
 
 If all went well, you should see ~55,000 entries!
