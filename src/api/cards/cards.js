@@ -32,6 +32,7 @@ function queryBuilder(request) {
     supertypes,
     types,
     t,type,
+    setCode,
     // GENERIC TEXT SEARCH
     q
   } = request;
@@ -98,6 +99,10 @@ function queryBuilder(request) {
     query.type = { $regex: typeString };
   }
 
+  if (setCode) {
+    query.setCode = setCode.toUpperCase();
+  }
+
   // BASIC TEXT SEARCH (name, text, type)
   if (q) {
     // to assist in finding cards that show the Tap symbol...
@@ -114,8 +119,6 @@ function queryBuilder(request) {
   
   // set primary sort order
   options.sort = { colorSortOrder: 1, manaCostSortOrder: 1, name: 1 };
-  
-  console.log({ query, options, params: request });
   
   return {
     query,
