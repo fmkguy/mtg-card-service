@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = express();
 
 mongoose.connect(
-  `mongodb://${process.env.MONGO_DB_USERNAME}:${process.env.MONGO_DB_PASSWORD}@mongo/mtg`,
+  process.env.DB_URL,
   { useNewUrlParser: true }
 );
 

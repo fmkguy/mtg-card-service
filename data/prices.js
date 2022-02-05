@@ -10,7 +10,7 @@ const { MODEL_NAMES } = require('../src/lib/constants');
 
 // Step 0: connect to db
 mongoose.connect(
-  `mongodb://${process.env.MONGO_DB_USERNAME}:${process.env.MONGO_DB_PASSWORD}@mongo/mtg`,
+  process.env.DB_URL,
   { useNewUrlParser: true }
 );
 

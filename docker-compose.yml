@@ -7,9 +7,9 @@ services:
     networks:
       - mtg-card-service
     environment:
-      MONGO_INITDB_DATABASE: mtg
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_DATABASE: $DB_NAME
+      MONGO_INITDB_ROOT_USERNAME: $DB_ROOT_USERNAME
+      MONGO_INITDB_ROOT_PASSWORD: $DB_ROOT_PASSWORD
     volumes:
       - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
       - db:/data/db
@@ -19,10 +19,10 @@ services:
     networks:
       - mtg-card-service
     ports:
-      - 8081:8081
+      - 8081:$DB_FRONTEND_PORT
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: root
+      ME_CONFIG_MONGODB_ADMINUSERNAME: $DB_ROOT_USERNAME
+      ME_CONFIG_MONGODB_ADMINPASSWORD: $DB_ROOT_PASSWORD
     depends_on: 
       - mongo
 
@@ -34,10 +34,10 @@ services:
     depends_on:
       - mongo
     ports:
-      - 3000:3000
+      - 3000:$API_PORT
     environment:
-      MONGO_DB_USERNAME: mtgAdmin
-      MONGO_DB_PASSWORD: manadork
+      DB_URL: mongodb://$DB_USERNAME:$DB_PASSWORD@mongo/$DB_NAME
+      PORT: $API_PORT
     volumes:
       - ./:/usr/src/app
       - api_modules:/usr/src/app/node_modules
